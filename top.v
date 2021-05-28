@@ -1,13 +1,14 @@
 module top (
 	output wire led, 
-	output wire clk, 
+	output wire clk,
+	output wire uart,
 	input wire rstn
 );
 
 // Clock settings
 wire Osc_Clock;
 wire Clock;
-OSCH #(.NOM_FREQ("133.00")) rc_oscillator(.STDBY(1'b0), .OSC(Osc_Clock));
+OSCH #(.NOM_FREQ("133.00")) rc_oscillator(.STDBY(1'b0), .OSC(Osc_Clock), .SEDSTDBY());
 PLL pll(.CLKI(Osc_Clock), .CLKOP(Clock));
 
 // Reset
@@ -18,6 +19,8 @@ assign Reset = ~rstn;
 wire ledReady;
 reg ledStart;
 
+// UART
+reg uart_start;
 
 // Wishbone settings
 reg wb_strobe;
@@ -103,6 +106,17 @@ end
 
 
 assign clk = ledTimerColour[7];		// Debug for timer
+
+
+
+// UART
+UART uart_module (
+	.i_Clock(Clock),
+	.i_Reset(Reset),
+	.i_Start(ledStart),
+	.i_Data(ledTimerColour),
+	.o_UART(uart)
+);
 
 endmodule
 

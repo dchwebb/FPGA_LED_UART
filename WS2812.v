@@ -10,7 +10,7 @@ module WS2812 (
 //GRB
 //reg [71:0] output_rgb = 72'h110000001100000011;
 //reg [23:0] output_rgb1 = 24'h550000;
-wire [32:0] output_rgb1;
+wire [23:0] output_rgb1;
 assign output_rgb1 = {i_Colour, 16'h0000};
 reg [23:0] output_rgb2 = 24'h00FF00;
 reg [23:0] output_rgb3 = 24'h000011;
@@ -29,14 +29,14 @@ always @(posedge i_Clock or posedge i_Reset) begin
 		clk_counter <= 0;
 	else if (clk_counter == 8'd24) begin
 		led_clock <= 1'b1;
-		clk_counter <= clk_counter + 1;
+		clk_counter <= clk_counter + 1'b1;
 	end
 	else if (clk_counter == 8'd42) begin
 		led_clock <= 1'b0;
 		clk_counter <= 0;
 	end
 	else
-		clk_counter <= clk_counter + 1;
+		clk_counter <= clk_counter + 1'b1;
 end
 
 assign o_Clock = led_clock;
@@ -92,7 +92,7 @@ always @(posedge led_clock or posedge i_Reset) begin
 			sm_phase2:
 				begin
 					led_state <= output_rgb[led_counter];
-					led_counter <= led_counter - 1;
+					led_counter <= led_counter - 1'b1;
 					if (led_counter == 8'd0) begin
 						SM <= sm_reset;
 					end
@@ -107,7 +107,7 @@ always @(posedge led_clock or posedge i_Reset) begin
 			sm_reset:
 				begin
 					led_state <= 1'b0;
-					led_counter <= led_counter + 1;
+					led_counter <= led_counter + 1'b1;
 					if (led_counter == 250)		// 120= 50uS (minimum gap from datasheet, but in practice needs to be longer)
 						SM <= sm_waiting;
 				end
