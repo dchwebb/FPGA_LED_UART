@@ -27,7 +27,8 @@ reg ledStart;
 // UART
 reg uart_start;
 wire uart_received;
-wire [7:0] uart_data_in;
+assign fifo_data = uart_received;
+//wire [7:0] uart_data_in;
 
 // Wishbone settings
 reg wb_strobe;
@@ -112,38 +113,74 @@ always @(posedge Clock or posedge Reset) begin
 end
 
 
-//assign clk = ledTimerColour[7];		// Debug for timer
+
 assign clk = uart_rx;
 
 
 reg uart_send;
-reg [7:0] uart_rx_data;
+reg uart_read;
+reg [7:0] uart_tx_data;
+wire [7:0] uart_fifo_data;
 
-/*
-always @(posedge Clock or posedge uart_received) begin
-	if (uart_received) begin
-		uart_rx_data <= uart_data_in;
-		uart_send <= 1'b1;
-	end
-	else
+// UART loopback state machine - sends out data when fifo is not empty
+reg [1:0] SM_uart;
+localparam sm_waiting  = 2'b00;
+localparam sm_fetching = 2'b01;
+localparam sm_sending  = 2'b10;
+
+
+always @(posedge Clock or posedge Reset) begin
+	if (Reset) begin
+		uart_read <= 1'b0;
 		uart_send <= 1'b0;
-		
+		SM_uart <= sm_waiting;
+	end
+	else begin
+		case (SM_uart)
+			sm_waiting:
+				begin
+					if (fifo_data) begin		// FIXME should be uart_received?
+						uart_read <= 1'b1;
+						SM_uart <= sm_sending;
+					end
+					else begin
+						uart_read <= 1'b0;
+						uart_send <= 1'b0;
+					end
+				end
+
+			sm_fetching:
+				begin
+					uart_tx_data <= uart_fifo_data;
+
+					SM_uart <= sm_sending;
+				end
+
+			sm_sending:
+				begin
+					uart_read <= 1'b0;
+					uart_send <= 1'b1;
+					SM_uart <= sm_waiting;
+				end
+		endcase
+	end
 end
-*/
+
+
 
 // UART
 UART uart_module (
 	.i_Clock(Clock),
 	.i_Reset(Reset),
 	.i_Start(uart_send),
-	.i_Data(uart_rx_data),
+	.i_Data(uart_tx_data),
 	.o_TX(uart_tx),
 	.i_RX(uart_rx),
+	.i_Read_FIFO(uart_read),
 	.o_Received(uart_received),
-	.o_Data(uart_data_in),
+	.o_Data(uart_fifo_data),
 	.busy(uart_busy),
-	.sample_point(uart_sample_point),
-	.fifo_has_data(fifo_data)
+	.sample_point(uart_sample_point)
 );
 
 
