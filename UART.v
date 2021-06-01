@@ -46,6 +46,14 @@ reg start;
 reg [3:0] bitCounter_tx;
 reg [7:0] sendData;
 
+
+// Clock start command
+always @(posedge i_Start or posedge busy) begin
+	start <= i_Start;
+end
+assign uart_sending = start;
+
+
 // UART TX state machine
 reg [1:0] SM_uart_tx;
 localparam sm_waiting_tx = 2'b00;
@@ -66,7 +74,7 @@ always @(posedge uartClock or posedge i_Reset) begin
 					if (start) begin
 						sendData <= i_Data;		// Store send data in register
 						o_TX <= 1'b0;				// Send start bit
-						bitCounter_tx <= 4'b0;
+						bitCounter_tx <= 4'd0;
 						busy <= 1'b1;
 						SM_uart_tx <= sm_data_tx;
 					end
@@ -95,11 +103,6 @@ always @(posedge uartClock or posedge i_Reset) begin
 end
 
 
-// Clock start command
-always @(posedge i_Start or posedge busy) begin
-	start <= i_Start;
-end
-assign uart_sending = start;
 
 // UART Receive state machine
 //reg sample_point;
