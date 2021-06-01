@@ -24,8 +24,7 @@ module tb;
         .Full(Full), .AlmostEmpty(AlmostEmpty), .AlmostFull(AlmostFull)
     );
 
-    initial
-    begin
+    initial begin
        Data <= 0;
       #100;
       @(Reset == 1'b0);
@@ -34,14 +33,14 @@ module tb;
         #1  Data <= Data + 1'b1;
       end
     end
+	 
     always
-    #5.00 WrClock <= ~ WrClock;
+		#5.00 WrClock <= ~ WrClock;
 
     always
-    #5.00 RdClock <= ~ RdClock;
+		#5.00 RdClock <= ~ RdClock;
 
-    initial
-    begin
+    initial begin
        WrEn <= 1'b0;
       #100;
       @(Reset == 1'b0);
@@ -51,6 +50,7 @@ module tb;
       end
        WrEn <= 1'b0;
     end
+	 
     initial
     begin
        RdEn <= 1'b0;

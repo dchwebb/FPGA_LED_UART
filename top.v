@@ -139,7 +139,7 @@ always @(posedge Clock or posedge Reset) begin
 		case (SM_uart)
 			sm_waiting:
 				begin
-					if (fifo_data) begin		// FIXME should be uart_received?
+					if (uart_received && ~uart_busy) begin		// FIXME should be uart_received?
 						uart_read <= 1'b1;
 						SM_uart <= sm_sending;
 					end
@@ -152,13 +152,13 @@ always @(posedge Clock or posedge Reset) begin
 			sm_fetching:
 				begin
 					uart_tx_data <= uart_fifo_data;
-
+					uart_read <= 1'b0;
 					SM_uart <= sm_sending;
 				end
 
 			sm_sending:
 				begin
-					uart_read <= 1'b0;
+					
 					uart_send <= 1'b1;
 					SM_uart <= sm_waiting;
 				end
