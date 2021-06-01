@@ -7,7 +7,7 @@ module top (
 	output wire debug,
 	output wire uart_busy,
 	output wire uart_sample_point,
-	output wire uart_sending
+	output wire fifo_data
 );
 
 // Clock settings
@@ -27,7 +27,6 @@ reg ledStart;
 // UART
 reg uart_start;
 wire uart_received;
-wire uart_sending;		// Debug
 wire [7:0] uart_data_in;
 
 // Wishbone settings
@@ -120,6 +119,7 @@ assign clk = uart_rx;
 reg uart_send;
 reg [7:0] uart_rx_data;
 
+/*
 always @(posedge Clock or posedge uart_received) begin
 	if (uart_received) begin
 		uart_rx_data <= uart_data_in;
@@ -129,7 +129,7 @@ always @(posedge Clock or posedge uart_received) begin
 		uart_send <= 1'b0;
 		
 end
-
+*/
 
 // UART
 UART uart_module (
@@ -143,22 +143,10 @@ UART uart_module (
 	.o_Data(uart_data_in),
 	.busy(uart_busy),
 	.sample_point(uart_sample_point),
-	.uart_sending(uart_sending)
-
+	.fifo_has_data(fifo_data)
 );
 
-/*
-UART uart_module (
-	.i_Clock(Clock),
-	.i_Reset(Reset),
-	.i_Start(ledStart),
-	.i_Data(ledTimerColour),
-	.o_TX(uart_tx),
-	.i_RX(uart_rx),
-	.o_Received(uart_received),
-	.o_Data(uart_data_in)
-);
-*/
+
 
 assign debug = uart_send;
 
