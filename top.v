@@ -6,9 +6,8 @@ module top (
 	output wire uart_sample_point
 );
 
+// Clock and PLL settings
 localparam CLOCK_FREQUENCY = 80000000;
-
-// Clock settings
 wire Osc_Clock;
 wire Clock;
 OSCH #(.NOM_FREQ("133.00")) rc_oscillator(.STDBY(1'b0), .OSC(Osc_Clock), .SEDSTDBY());
@@ -19,10 +18,8 @@ wire Reset;
 assign Reset = ~rstn;
 
 // LED settings
-wire ledReady;
-reg ledStart;
-
-
+wire led_ready;
+reg led_start;
 
 
 // Wishbone master for controlling timer
@@ -52,8 +49,8 @@ EFB_Timer timer (
 	.tc_oc( )
 );
 
-// Use wishbone bus to retrieve current counter setting to use as led colour
-reg [7:0] ledTimerColour;
+// State machine to retrieve current counter setting using Wishbone register
+reg [7:0] timer_value;
 reg SM_wishbone;
 localparam sm_wb_waiting = 1'b0;
 localparam sm_wb_waitack = 1'b1;
@@ -65,12 +62,12 @@ always @(posedge Clock or posedge Reset) begin
 		wb_buscycle <= 1'b0;
 		wb_we <= 1'b0;
 		wb_addr <= 8'h0;
-		ledTimerColour <= 8'h0;
+		timer_value <= 8'h0;
 	end
 	else begin
 		case(SM_wishbone)
 			sm_wb_waiting:
-				if (!ledStart) begin
+				if (!led_start) begin
 					wb_strobe <= 1'b1;
 					wb_buscycle <= 1'b1;
 					wb_we <= 1'b0;
@@ -81,7 +78,7 @@ always @(posedge Clock or posedge Reset) begin
 				if (wb_ack) begin
 					wb_strobe <= 1'b0;
 					wb_buscycle <= 1'b0;	
-					ledTimerColour <= wb_data;
+					timer_value <= wb_data;
 					SM_wishbone <= sm_wb_waiting;
 				end
 		endcase
@@ -95,17 +92,17 @@ WS2812 #(.CLOCK_FREQUENCY(CLOCK_FREQUENCY)) ws2812 (
 	.i_Clock(Clock),
 	.i_Reset(Reset),
 
-	.i_Start(ledStart),
-	.i_Colour(ledTimerColour),
+	.i_Start(led_start),
+	.i_Colour(timer_value),
 	.o_Led(led),
-	.o_Ready(ledReady)
+	.o_Ready(led_ready)
 );
 
 always @(posedge Clock or posedge Reset) begin
 	if (Reset)
-		ledStart <= 1'b0;
+		led_start <= 1'b0;
 	else
-		ledStart <= ledReady;
+		led_start <= led_ready;
 end
 
 
