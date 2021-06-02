@@ -5,13 +5,15 @@ module UART (
 	input wire i_Start,
 	input wire [7:0] i_Data,
 	output reg o_TX,
-
+	output reg o_Busy_TX,
+	
 	input wire i_RX,
-	input wire i_Read_FIFO,
 	output wire o_Received,
+	output reg sample_point,
+	
+	input wire i_Read_FIFO,
 	output reg [7:0] o_Data,
-	output reg busy,
-	output reg sample_point
+	output reg o_Data_Ready
 );
 
 
@@ -69,7 +71,7 @@ localparam sm_stopbit_tx = 2'b10;
 always @(posedge i_Clock or posedge i_Reset) begin
 	if (i_Reset) begin
 		o_TX <= 1'b1;
-		busy <= 1'b0;
+		o_Busy_TX <= 1'b0;
 		SM_uart_tx <= sm_waiting_tx;
 	end
 	else begin
@@ -79,14 +81,14 @@ always @(posedge i_Clock or posedge i_Reset) begin
 					if (i_Start) begin
 						data_tx <= i_Data;		// Store send data in register
 						o_TX <= 1'b0;				// Send start bit
-						busy <= 1'b1;
+						o_Busy_TX <= 1'b1;
 						bitCounter_tx <= 4'd0;
 						clock_count_tx <= uart_divider;
 						SM_uart_tx <= sm_data_tx;
 					end
 					else begin
 						o_TX <= 1'b1;
-						busy <= 1'b0;
+						o_Busy_TX <= 1'b0;
 					end
 				end
 
@@ -111,7 +113,7 @@ always @(posedge i_Clock or posedge i_Reset) begin
 					o_TX <= 1'b1;
 					
 					if (clock_count_tx == 16'd0) begin
-						busy <= 1'b0;
+						o_Busy_TX <= 1'b0;
 						SM_uart_tx <= sm_waiting_tx;
 					end
 				end
@@ -184,11 +186,13 @@ always @(posedge i_Clock or posedge i_Reset) begin
 	if (i_Reset) begin
 		SM_uart_fifo <= sm_waiting_fifo;
 		fifo_read <= 1'b0;
+		o_Data_Ready <= 1'b0;
 	end
 	else
 		case (SM_uart_fifo)
 			sm_waiting_fifo:
 				if (i_Read_FIFO && o_Received) begin
+					o_Data_Ready <= 1'b0;
 					fifo_read <= 1'b1;
 					SM_uart_fifo <= sm_wait_fifo;
 				end
@@ -200,6 +204,7 @@ always @(posedge i_Clock or posedge i_Reset) begin
 
 			sm_data_fifo:
 				begin
+					o_Data_Ready <= 1'b1;
 					o_Data <= fifo_data_out;
 					SM_uart_fifo <= sm_waiting_fifo;
 				end

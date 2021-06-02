@@ -179,7 +179,7 @@ UART uart_module (
 	.i_Read_FIFO(uart_read),
 	.o_Received(uart_received),
 	.o_Data(uart_fifo_data),
-	.busy(uart_busy),
+	.o_Busy_TX(uart_busy),
 	.sample_point(uart_sample_point)
 );
 
