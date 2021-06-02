@@ -1,15 +1,17 @@
-module WS2812 (
-	input wire i_Reset,
-	input wire i_Clock,
-	input wire i_Start,
-	input wire [7:0] i_Colour,
-	output wire o_Led,
-	output wire o_Ready
-);
+module WS2812 
+	#(parameter CLOCK_FREQUENCY = 100000000)
+	(
+		input wire i_Clock,
+		input wire i_Reset,
+
+		input wire i_Start,
+		input wire [7:0] i_Colour,
+		output wire o_Led,
+		output wire o_Ready
+	);
+
 
 //GRB
-//reg [71:0] output_rgb = 72'h110000001100000011;
-//reg [23:0] output_rgb1 = 24'h550000;
 wire [23:0] output_rgb1;
 assign output_rgb1 = {i_Colour, 16'h0000};
 reg [23:0] output_rgb2 = 24'h00FF00;
@@ -23,15 +25,18 @@ reg led_state = 1'b0;
 assign o_Led = led_state;
 reg ledReady;
 
-// Each pulse must be around .42us; 3 pulses needed for each bit: 3 * .42 = 1.26us
+// Each pulse must be around .42us (= 2.38MHz); 3 pulses needed for each bit: 3 * .42 = 1.26us
+localparam [8:0] clock_divider_0 = CLOCK_FREQUENCY / 2380000;
+localparam [8:0] clock_divider_1 = clock_divider_0 / 2;
+
 always @(posedge i_Clock or posedge i_Reset) begin
 	if (i_Reset)
 		clk_counter <= 0;
-	else if (clk_counter == 8'd24) begin
+	else if (clk_counter == clock_divider_1) begin
 		led_clock <= 1'b1;
 		clk_counter <= clk_counter + 1'b1;
 	end
-	else if (clk_counter == 8'd42) begin
+	else if (clk_counter == clock_divider_0) begin
 		led_clock <= 1'b0;
 		clk_counter <= 0;
 	end
@@ -39,17 +44,15 @@ always @(posedge i_Clock or posedge i_Reset) begin
 		clk_counter <= clk_counter + 1'b1;
 end
 
-assign o_Clock = led_clock;
-
 
 
 // State machine
-reg [3:0] SM;
-localparam sm_waiting = 4'b0000;
-localparam sm_phase1  = 4'b0001;			// First phase of output bit (always 1)
-localparam sm_phase2  = 4'b0010;			// Second phase (1 or 0)
-localparam sm_phase3  = 4'b0011;			// Third phase (always 0)
-localparam sm_reset   = 4'b0100;			// Wait until ready to send again
+reg [2:0] SM;
+localparam sm_waiting = 3'b000;
+localparam sm_phase1  = 3'b001;			// First phase of output bit (always 1)
+localparam sm_phase2  = 3'b010;			// Second phase (1 or 0)
+localparam sm_phase3  = 3'b011;			// Third phase (always 0)
+localparam sm_reset   = 3'b100;			// Wait until ready to send again
 
 
 // clock the ready output
@@ -80,7 +83,7 @@ always @(posedge led_clock or posedge i_Reset) begin
 		case (SM)
 			sm_waiting:
 				if (start) begin
-					led_counter <= 8'd71;
+					led_counter <= 8'd71;			// 72 = 3 leds x 24 colour bits
 					led_state <= 1'b1;
 					SM <= sm_phase2;
 				end

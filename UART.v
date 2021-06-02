@@ -1,20 +1,20 @@
-module UART (
-	input wire i_Clock,
-	input wire i_Reset,
+module UART	#(parameter CLOCK_FREQUENCY = 100000000)
+	(
+		input wire i_Clock,
+		input wire i_Reset,
 
-	input wire i_Start,
-	input wire [7:0] i_Data,
-	output reg o_TX,
-	output reg o_Busy_TX,
-	
-	input wire i_RX,
-	output wire o_Received,
-	output reg sample_point,
-	
-	input wire i_Read_FIFO,
-	output reg [7:0] o_Data,
-	output reg o_Data_Ready
-);
+		input wire i_Start,
+		input wire [7:0] i_Data,
+		output reg o_TX,
+		output reg o_Busy_TX,
+		
+		input wire i_RX,
+		output reg sample_point,
+		
+		input wire i_Read_Data,
+		output reg [7:0] o_Data,
+		output reg o_Data_Ready
+	);
 
 
 // UART TX registers
@@ -34,7 +34,7 @@ reg fifo_read;
 wire fifo_empty;
 wire [7:0] fifo_data_out;
 
-assign o_Received = ~fifo_empty;
+//assign o_Received = ~fifo_empty;
 
 UART_FIFO fifo (
 	.Data(data_rx),
@@ -55,8 +55,8 @@ UART_FIFO fifo (
 // TX Clock divider: divide clock to 115200 baud
 reg [15:0] clockDivider;
 reg uartClock;
-localparam clock_speed = 80000000;
-localparam [15:0] uart_divider = clock_speed / 115200;
+//localparam clock_speed = 80000000;
+localparam [15:0] uart_divider = CLOCK_FREQUENCY / 115200;
 localparam [15:0] first_sample = 1.5 * uart_divider;		// When receiving first sample point is 1.5 uart clocks after start bit
 
 
@@ -176,7 +176,7 @@ end
 
 
 //----------------------------------------------------------------
-// UART FIFO read received data state machine
+// UART FIFO read received data state machine - always place next data on output
 reg [1:0] SM_uart_fifo;
 localparam sm_waiting_fifo = 2'b00;
 localparam sm_wait_fifo    = 2'b01;
@@ -191,8 +191,14 @@ always @(posedge i_Clock or posedge i_Reset) begin
 	else
 		case (SM_uart_fifo)
 			sm_waiting_fifo:
-				if (i_Read_FIFO && o_Received) begin
+				if (i_Read_Data) begin										// As soon as last data read latch in next data
 					o_Data_Ready <= 1'b0;
+					if (~fifo_empty) begin
+						fifo_read <= 1'b1;
+						SM_uart_fifo <= sm_wait_fifo;
+					end
+				end
+				else if (~fifo_empty && ~o_Data_Ready) begin		// As soon as last data read latch in next data
 					fifo_read <= 1'b1;
 					SM_uart_fifo <= sm_wait_fifo;
 				end
@@ -200,7 +206,7 @@ always @(posedge i_Clock or posedge i_Reset) begin
 					fifo_read <= 1'b0;
 					
 			sm_wait_fifo:
-				SM_uart_fifo <= sm_data_fifo;			// FIFO seems to take two clock cycles to return data
+				SM_uart_fifo <= sm_data_fifo;								// FIFO seems to take two clock cycles to return data
 
 			sm_data_fifo:
 				begin
@@ -211,6 +217,7 @@ always @(posedge i_Clock or posedge i_Reset) begin
 
 		endcase
 end
+
 
 
 endmodule

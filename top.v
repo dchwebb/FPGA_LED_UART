@@ -2,13 +2,11 @@ module top (
 	input wire rstn,
 	input wire uart_rx,
 	output wire led, 
-	output wire clk,
 	output wire uart_tx,
-	output wire debug,
-	output wire uart_busy,
-	output wire uart_sample_point,
-	output wire fifo_data
+	output wire uart_sample_point
 );
+
+localparam CLOCK_FREQUENCY = 80000000;
 
 // Clock settings
 wire Osc_Clock;
@@ -24,13 +22,10 @@ assign Reset = ~rstn;
 wire ledReady;
 reg ledStart;
 
-// UART
-reg uart_start;
-wire uart_received;
-assign fifo_data = uart_received;
-//wire [7:0] uart_data_in;
 
-// Wishbone settings
+
+
+// Wishbone master for controlling timer
 reg wb_strobe;
 reg wb_buscycle;
 reg wb_we;
@@ -96,9 +91,10 @@ end
 
 
 // Addressable LED module
-WS2812 ws2812 (
-	.i_Reset(Reset),
+WS2812 #(.CLOCK_FREQUENCY(CLOCK_FREQUENCY)) ws2812 (
 	.i_Clock(Clock),
+	.i_Reset(Reset),
+
 	.i_Start(ledStart),
 	.i_Colour(ledTimerColour),
 	.o_Led(led),
@@ -114,78 +110,55 @@ end
 
 
 
-assign clk = uart_rx;
 
 
+// UART
 reg uart_send;
 reg uart_read;
 reg [7:0] uart_tx_data;
 wire [7:0] uart_fifo_data;
-
-// UART loopback state machine - sends out data when fifo is not empty
-reg [1:0] SM_uart;
-localparam sm_waiting  = 2'b00;
-localparam sm_fetching = 2'b01;
-localparam sm_sending  = 2'b10;
+wire uart_send_busy;
 
 
+// UART
+UART #(.CLOCK_FREQUENCY(CLOCK_FREQUENCY)) uart_module (
+		.i_Clock(Clock),
+		.i_Reset(Reset),
+		
+		.i_Start(uart_send),
+		.i_Data(uart_tx_data),
+		.o_TX(uart_tx),
+		.o_Busy_TX(uart_send_busy),
+		
+		.i_RX(uart_rx),
+		.sample_point(uart_sample_point),
+		
+		.i_Read_Data(uart_read),
+		.o_Data(uart_fifo_data),
+		.o_Data_Ready(uart_fifo_ready)
+			
+	);
+
+// UART loopback - sends out data when fifo is not empty
 always @(posedge Clock or posedge Reset) begin
 	if (Reset) begin
 		uart_read <= 1'b0;
 		uart_send <= 1'b0;
-		SM_uart <= sm_waiting;
 	end
 	else begin
-		case (SM_uart)
-			sm_waiting:
-				begin
-					if (uart_received && ~uart_busy) begin		// FIXME should be uart_received?
-						uart_read <= 1'b1;
-						SM_uart <= sm_sending;
-					end
-					else begin
-						uart_read <= 1'b0;
-						uart_send <= 1'b0;
-					end
-				end
-
-			sm_fetching:
-				begin
-					uart_tx_data <= uart_fifo_data;
-					uart_read <= 1'b0;
-					SM_uart <= sm_sending;
-				end
-
-			sm_sending:
-				begin
-					
-					uart_send <= 1'b1;
-					SM_uart <= sm_waiting;
-				end
-		endcase
+		
+		if (uart_fifo_ready && ~uart_send_busy) begin
+			uart_read <= 1'b1;
+			uart_tx_data <= uart_fifo_data;
+			uart_send <= 1'b1;
+		end
+		else begin
+			uart_read <= 1'b0;
+			uart_send <= 1'b0;
+		end
 	end
 end
 
-
-
-// UART
-UART uart_module (
-	.i_Clock(Clock),
-	.i_Reset(Reset),
-	.i_Start(uart_send),
-	.i_Data(uart_tx_data),
-	.o_TX(uart_tx),
-	.i_RX(uart_rx),
-	.i_Read_FIFO(uart_read),
-	.o_Received(uart_received),
-	.o_Data(uart_fifo_data),
-	.o_Busy_TX(uart_busy),
-	.sample_point(uart_sample_point)
-);
-
-
-
-assign debug = uart_send;
 
 endmodule
 

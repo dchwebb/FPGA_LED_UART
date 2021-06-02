@@ -8,7 +8,7 @@ wire uart_tx;
 reg uart_rx;
 wire uart_received;
 wire uart_sample_point;
-wire uart_busy;
+wire uart_send_busy;
 wire uart_fifo_ready;
 reg uart_send;
 reg uart_read;
@@ -27,13 +27,12 @@ UART uart_module (
 	.i_Start(uart_send),
 	.i_Data(uart_tx_data),
 	.o_TX(uart_tx),
-	.o_Busy_TX(uart_busy),
+	.o_Busy_TX(uart_send_busy),
 	
 	.i_RX(uart_rx),
-	.o_Received(uart_received),
 	.sample_point(uart_sample_point),
 	
-	.i_Read_FIFO(uart_read),
+	.i_Read_Data(uart_read),
 	.o_Data(uart_fifo_data),
 	.o_Data_Ready(uart_fifo_ready)
 	
@@ -41,49 +40,23 @@ UART uart_module (
 
 
 
-// UART loopback state machine - sends out data when fifo is not empty
-reg [1:0] SM_uart;
-localparam sm_waiting = 2'b00;
-localparam sm_wait    = 2'b01;
-localparam sm_store   = 2'b10;
-localparam sm_send    = 2'b11;
-
-
+// UART loopback - sends out data when fifo is not empty
 always @(posedge Clock or posedge Reset) begin
 	if (Reset) begin
 		uart_read <= 1'b0;
 		uart_send <= 1'b0;
-		SM_uart <= sm_waiting;
 	end
 	else begin
-		case (SM_uart)
-			sm_waiting:
-				begin
-					if (uart_received && ~uart_busy) begin
-						uart_read <= 1'b1;
-						SM_uart <= sm_wait;
-					end
-					else begin
-						uart_send <= 1'b0;
-					end
-				end
-
-			sm_wait:
-				begin
-					uart_read <= 1'b0;
-					
-					if (uart_fifo_ready)
-						SM_uart <= sm_send;
-				end
-
-			sm_send:
-				begin
-					uart_tx_data <= uart_fifo_data;
-					uart_send <= 1'b1;
-					SM_uart <= sm_waiting;
-				end
-				
-		endcase
+		
+		if (uart_fifo_ready && ~uart_send_busy) begin
+			uart_read <= 1'b1;
+			uart_tx_data <= uart_fifo_data;
+			uart_send <= 1'b1;
+		end
+		else begin
+			uart_read <= 1'b0;
+			uart_send <= 1'b0;
+		end
 	end
 end
 
