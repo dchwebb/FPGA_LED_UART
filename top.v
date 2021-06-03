@@ -20,14 +20,19 @@ wire Reset;
 assign Reset = ~rstn;
 
 // LED settings
-reg led1_r_on;
-reg [7:0] led1_r;
-reg led1_g_on;
-reg [7:0] led1_g;
-reg led1_b_on;
-reg [7:0] led1_b;
+reg led_on[2:0][2:0];
+reg [7:0] led_shade[2:0][2:0];
 wire led_ready;
 reg led_start;
+
+localparam red   = 2'b00;
+localparam green = 2'b01;
+localparam blue  = 2'b10;
+
+localparam led1  = 2'b00;
+localparam led2  = 2'b01;
+localparam led3  = 2'b10;
+
 
 // Wishbone master settings for controlling timer
 reg wb_strobe;
@@ -102,17 +107,17 @@ WS2812 #(.CLOCK_FREQUENCY(CLOCK_FREQUENCY)) ws2812 (
 
 	.i_Start(led_start),
 
-	.i_LED1_R(led1_r),
-	.i_LED1_G(led1_g),
-	.i_LED1_B(led1_b),
+	.i_LED1_R(led_shade[led1][red]),
+	.i_LED1_G(led_shade[led1][green]),
+	.i_LED1_B(led_shade[led1][blue]),
 	
-	.i_LED2_R(8'b0),
-	.i_LED2_G(timer_value),
-	.i_LED2_B(8'b0),
+	.i_LED2_R(led_shade[led2][red]),
+	.i_LED2_G(led_shade[led2][green]),
+	.i_LED2_B(led_shade[led2][blue]),
 
-	.i_LED3_R(8'b0),
-	.i_LED3_G(8'b0),
-	.i_LED3_B(timer_value),
+	.i_LED3_R(led_shade[led3][red]),
+	.i_LED3_G(led_shade[led3][green]),
+	.i_LED3_B(led_shade[led3][blue]),
 	
 	.o_Led(led),
 	.o_Ready(led_ready)
@@ -161,19 +166,7 @@ UART #(.CLOCK_FREQUENCY(CLOCK_FREQUENCY)) uart_module (
 // UART state machine for led control (eg 'r1\n' to toggle led 1 red)
 reg [2:0] SM_rgb_control;
 localparam sm_rgb_waiting = 3'b000;
-localparam sm_rgb_pause  = 3'b001;
-localparam sm_rgb_led_no  = 3'b010;
-localparam sm_rgb_pause2  = 3'b011;
-localparam sm_rgb_send    = 3'b100;
-
-
-localparam red   = 2'b00;
-localparam green = 2'b01;
-localparam blue  = 2'b10;
-
-localparam led1  = 2'b00;
-localparam led2  = 2'b01;
-localparam led3  = 2'b10;
+localparam sm_rgb_pause   = 3'b001;
 
 reg [1:0] rgb_colour;
 reg [1:0] rgb_number;
@@ -183,8 +176,10 @@ reg [2:0] char_count;
 always @(posedge Clock or posedge Reset) begin
 	if (Reset) begin
 		SM_rgb_control <= sm_rgb_waiting;
-		led1_r_on <= 1'b0;
-		led1_r <= 8'h0;
+//		led_on <= 1'h0;
+//		led_shade <= 1'h0;
+
+		
 		uart_read <= 1'b0;
 		uart_send <= 1'b0;
 		char_count <= 3'b0;
@@ -217,23 +212,8 @@ always @(posedge Clock or posedge Reset) begin
 							{3'd2, 8'h0A}:
 								begin
 									char_count <= 3'd0;
-									case ({rgb_number, rgb_colour})
-										{led1, red}:
-											begin
-												led1_r <= led1_r_on ? 8'h0 : 8'h11;
-												led1_r_on <= ~led1_r_on;
-											end
-										{led1, green}:
-											begin
-												led1_g <= led1_g_on ? 8'h0 : 8'h11;
-												led1_g_on <= ~led1_g_on;
-											end
-										{led1, blue}:
-											begin
-												led1_b <= led1_b_on ? 8'h0 : 8'h11;
-												led1_b_on <= ~led1_b_on;
-											end
-									endcase
+									led_shade[rgb_number][rgb_colour] <= led_on[rgb_number][rgb_colour] ? 8'h0 : 8'h11;
+									led_on[rgb_number][rgb_colour] <= ~led_on[rgb_number][rgb_colour];
 								end
 							default:		
 								char_count <= 3'd0;
