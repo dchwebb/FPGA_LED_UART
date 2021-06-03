@@ -4,16 +4,16 @@ module top (
 	output wire led, 
 	output wire uart_tx,
 	output wire uart_sample_point,
-	output reg rgb_debug,
-	output wire uart_sm_debug
+	output wire uart_sm_debug,
+	output wire debug_led_start
 );
 
 // Clock and PLL settings
 localparam CLOCK_FREQUENCY = 80000000;
-wire osc_Clock;
+wire osc_clock;
 wire Clock;
-OSCH #(.NOM_FREQ("133.00")) rc_oscillator(.STDBY(1'b0), .OSC(osc_Clock), .SEDSTDBY());
-PLL pll(.CLKI(osc_Clock), .CLKOP(Clock));
+OSCH #(.NOM_FREQ("133.00")) rc_oscillator(.STDBY(1'b0), .OSC(osc_clock), .SEDSTDBY());
+PLL pll(.CLKI(osc_clock), .CLKOP(Clock));
 
 // Reset
 wire Reset;
@@ -24,6 +24,7 @@ reg led_on[2:0][2:0];
 reg [7:0] led_shade[2:0][2:0];
 wire led_ready;
 reg led_start;
+assign debug_led_start = led_start;
 
 localparam red   = 2'b00;
 localparam green = 2'b01;
@@ -52,15 +53,16 @@ EFB_Timer timer (
 	.wb_stb_i(wb_strobe), 
 	.wb_we_i(1'b0),
 	.wb_adr_i(wb_addr),
-	.wb_dat_i(),
+	.wb_dat_i(8'b0),
 	.wb_dat_o(wb_data),
 	.wb_ack_o(wb_ack), 
 	.tc_clki(Clock),
 	.tc_rstn(rstn),
-	.tc_ic( ),
-	.tc_int( ),
-	.tc_oc( )
+	.tc_ic(1'b0),
+	.tc_int(),
+	.tc_oc()
 );
+
 
 // State machine to retrieve current counter setting using Wishbone register
 reg [7:0] timer_value;
@@ -123,14 +125,6 @@ WS2812 #(.CLOCK_FREQUENCY(CLOCK_FREQUENCY)) ws2812 (
 	.o_Ready(led_ready)
 );
 
-always @(posedge Clock or posedge Reset) begin
-	if (Reset)
-		led_start <= 1'b0;
-	else
-		led_start <= led_ready;
-end
-
-
 
 
 //---------------------------------------------------------------
@@ -163,10 +157,11 @@ UART #(.CLOCK_FREQUENCY(CLOCK_FREQUENCY)) uart_module (
 			
 	);
 
-// UART state machine for led control (eg 'r1\n' to toggle led 1 red)
-reg [2:0] SM_rgb_control;
-localparam sm_rgb_waiting = 3'b000;
-localparam sm_rgb_pause   = 3'b001;
+
+// UART state machine for reading in UART data to control led (eg 'r1\n' to toggle led 1 red)
+reg SM_rgb_control;
+localparam sm_rgb_waiting = 1'b0;
+localparam sm_rgb_clear   = 1'b1;
 
 reg [1:0] rgb_colour;
 reg [1:0] rgb_number;
@@ -175,32 +170,27 @@ reg [2:0] char_count;
 // UART loopback - sends out data when fifo is not empty
 always @(posedge Clock or posedge Reset) begin
 	if (Reset) begin
-		SM_rgb_control <= sm_rgb_waiting;
-//		led_on <= 1'h0;
-//		led_shade <= 1'h0;
-
-		
-		uart_read <= 1'b0;
-		uart_send <= 1'b0;
+		SM_rgb_control <= sm_rgb_clear;
 		char_count <= 3'b0;
-		rgb_debug <= 1'b0;
 		rgb_colour <= 2'd0;
 		rgb_number <= 2'd0;
+		led_start  <= 1'b0;
 	end
 	else begin
 		case (SM_rgb_control)
 				sm_rgb_waiting:
 				begin
+					led_start  <= 1'b0;
 					uart_read <= 1'b0;
 					uart_send <= 1'b0;
 					
 					if (uart_fifo_ready && ~uart_send_busy) begin
 						uart_read <= 1'b1;
-						uart_tx_data <= uart_rx_data;
+						uart_tx_data <= uart_rx_data;					// loopback UART data
 						uart_send <= 1'b1;
 						
-						SM_rgb_control <= sm_rgb_pause;
-						char_count <= char_count + 3'd1;
+						SM_rgb_control <= sm_rgb_clear;
+						char_count <= char_count + 3'd1;			// increment character count checking that each character is valid
 
 						case ({char_count, uart_rx_data})
 							{3'd0, 8'h72}:		rgb_colour <= red;
@@ -214,15 +204,16 @@ always @(posedge Clock or posedge Reset) begin
 									char_count <= 3'd0;
 									led_shade[rgb_number][rgb_colour] <= led_on[rgb_number][rgb_colour] ? 8'h0 : 8'h11;
 									led_on[rgb_number][rgb_colour] <= ~led_on[rgb_number][rgb_colour];
+									led_start <= 1'b1;
 								end
 							default:		
-								char_count <= 3'd0;
+								char_count <= 3'd0;						// Invalid character - reset state machine
 						endcase
 						
 					end
 				end
 				
-			sm_rgb_pause:
+			sm_rgb_clear:													// Clear read and send flags or fifo does not have time to clear ready state
 				begin
 					uart_read <= 1'b0;
 					uart_send <= 1'b0;
@@ -233,28 +224,7 @@ always @(posedge Clock or posedge Reset) begin
 	end
 end
 
-/*
 
-// UART loopback - sends out data when fifo is not empty
-always @(posedge Clock or posedge Reset) begin
-	if (Reset) begin
-		uart_read <= 1'b0;
-		uart_send <= 1'b0;
-	end
-	else begin
-		
-		if (uart_fifo_ready && ~uart_send_busy) begin
-			uart_read <= 1'b1;
-			uart_tx_data <= uart_rx_data;
-			uart_send <= 1'b1;
-		end
-		else begin
-			uart_read <= 1'b0;
-			uart_send <= 1'b0;
-		end
-	end
-end
-*/
 
 endmodule
 

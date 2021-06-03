@@ -18,26 +18,18 @@ module WS2812
 		input wire [7:0] i_LED3_G,
 		input wire [7:0] i_LED3_B,
 
-		output wire o_Led,
-		output wire o_Ready
+		output reg o_Led,
+		output reg o_Ready
 	);
 
 
-//GRB
-/*
-wire [23:0] output_rgb1;
-assign output_rgb1 = {i_LED1_G, i_LED1_R, i_LED1_B};
-reg [23:0] output_rgb2 = 24'h00FF00;
-reg [23:0] output_rgb3 = 24'h000011;
-*/
+// colour order: GRB
 wire [71:0] output_rgb;assign output_rgb = {i_LED1_G, i_LED1_R, i_LED1_B, i_LED2_G, i_LED2_R, i_LED2_B, i_LED3_G, i_LED3_R, i_LED3_B};
 
 reg [8:0] clk_counter;
 reg [8:0] led_counter;
 reg led_clock = 1'b0;
-reg led_state = 1'b0;
-assign o_Led = led_state;
-reg ledReady;
+
 
 // Each pulse must be around .42us (= 2.38MHz); 3 pulses needed for each bit: 3 * .42 = 1.26us
 localparam [8:0] clock_divider_0 = CLOCK_FREQUENCY / 2380000;
@@ -71,25 +63,25 @@ localparam sm_reset   = 3'b100;			// Wait until ready to send again
 
 // clock the ready output
 always @(posedge led_clock) begin
-	ledReady <= (SM == sm_waiting);
+	o_Ready <= (SM == sm_waiting);
 end
 
 // clock the start intput
 reg start;
-always @(posedge i_Start or posedge led_clock) begin
-	if (SM == sm_waiting) begin
-		start <= i_Start;
-	end
-	else begin
+
+always @(posedge i_Clock) begin
+	if (i_Start)
+		start <= 1'b1;
+	
+	else if (SM != sm_waiting)
 		start <= 1'b0;
-	end
 end
 
 
 // Main LED output loop
 always @(posedge led_clock or posedge i_Reset) begin
 	if (i_Reset) begin
-		led_state <= 1'b0;
+		o_Led <= 1'b0;
 		led_counter = 8'b0;
 		SM <= sm_waiting;
 	end
@@ -98,17 +90,17 @@ always @(posedge led_clock or posedge i_Reset) begin
 			sm_waiting:
 				if (start) begin
 					led_counter <= 8'd71;			// 72 = 3 leds x 24 colour bits
-					led_state <= 1'b1;
+					o_Led <= 1'b1;
 					SM <= sm_phase2;
 				end
 			sm_phase1:
 				begin
-					led_state <= 1'b1;
+					o_Led <= 1'b1;
 					SM <= sm_phase2;
 				end
 			sm_phase2:
 				begin
-					led_state <= output_rgb[led_counter];
+					o_Led <= output_rgb[led_counter];
 					led_counter <= led_counter - 1'b1;
 					if (led_counter == 8'd0) begin
 						SM <= sm_reset;
@@ -118,22 +110,20 @@ always @(posedge led_clock or posedge i_Reset) begin
 				end
 			sm_phase3:
 				begin
-					led_state <= 1'b0;
+					o_Led <= 1'b0;
 					SM <= sm_phase1;
 				end
 			sm_reset:
 				begin
-					led_state <= 1'b0;
+					o_Led <= 1'b0;
 					led_counter <= led_counter + 1'b1;
-					if (led_counter == 250)		// 120= 50uS (minimum gap from datasheet, but in practice needs to be longer)
+					if (led_counter == 250)		// 120 = 50uS (minimum gap from datasheet, but in practice needs to be longer)
 						SM <= sm_waiting;
 				end
 		endcase
 	end
 end
 
-assign o_Ready = ledReady;
-//assign o_Ready = (SM == sm_waiting) && !i_Start;
 
 endmodule
 

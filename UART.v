@@ -44,8 +44,8 @@ UART_FIFO fifo (
 	.RdClock(i_Clock),
 	.WrEn(fifo_write),
 	.RdEn(fifo_read),
-	.Reset(Reset),
-	.RPReset(Reset),
+	.Reset(i_Reset),
+	.RPReset(i_Reset),
 	.Q(fifo_data_out),
 	.Empty(fifo_empty),
 	.Full( ),
@@ -57,7 +57,7 @@ UART_FIFO fifo (
 // TX Clock divider: divide clock to 115200 baud
 reg [15:0] clockDivider;
 reg uartClock;
-//localparam clock_speed = 80000000;
+
 localparam [15:0] uart_divider = CLOCK_FREQUENCY / 115200;
 localparam [15:0] first_sample = 1.5 * uart_divider;		// When receiving first sample point is 1.5 uart clocks after start bit
 
