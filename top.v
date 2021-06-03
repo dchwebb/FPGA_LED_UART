@@ -3,15 +3,17 @@ module top (
 	input wire uart_rx,
 	output wire led, 
 	output wire uart_tx,
-	output wire uart_sample_point
+	output wire uart_sample_point,
+	output wire uart_sample_error,
+	output wire uart_sm_debug
 );
 
 // Clock and PLL settings
 localparam CLOCK_FREQUENCY = 80000000;
-wire Osc_Clock;
+wire osc_Clock;
 wire Clock;
-OSCH #(.NOM_FREQ("133.00")) rc_oscillator(.STDBY(1'b0), .OSC(Osc_Clock), .SEDSTDBY());
-PLL pll(.CLKI(Osc_Clock), .CLKOP(Clock));
+OSCH #(.NOM_FREQ("133.00")) rc_oscillator(.STDBY(1'b0), .OSC(osc_Clock), .SEDSTDBY());
+PLL pll(.CLKI(osc_Clock), .CLKOP(Clock));
 
 // Reset
 wire Reset;
@@ -21,8 +23,7 @@ assign Reset = ~rstn;
 wire led_ready;
 reg led_start;
 
-
-// Wishbone master for controlling timer
+// Wishbone master settings for controlling timer
 reg wb_strobe;
 reg wb_buscycle;
 reg wb_we;
@@ -31,6 +32,7 @@ reg [7:0] wb_addr;
 wire [7:0] wb_data;
 
 
+//---------------------------------------------------------------
 // EFB (Embedded function blocks): implement wishbone master functionality for interacting with timer
 EFB_Timer timer (
 	.wb_clk_i(Clock),
@@ -86,7 +88,7 @@ always @(posedge Clock or posedge Reset) begin
 end
 
 
-
+//---------------------------------------------------------------
 // Addressable LED module
 WS2812 #(.CLOCK_FREQUENCY(CLOCK_FREQUENCY)) ws2812 (
 	.i_Clock(Clock),
@@ -108,7 +110,7 @@ end
 
 
 
-
+//---------------------------------------------------------------
 // UART
 reg uart_send;
 reg uart_read;
@@ -129,12 +131,15 @@ UART #(.CLOCK_FREQUENCY(CLOCK_FREQUENCY)) uart_module (
 		
 		.i_RX(uart_rx),
 		.sample_point(uart_sample_point),
+		.sample_error(uart_sample_error),
+		.sm_debug(uart_sm_debug),
 		
 		.i_Read_Data(uart_read),
 		.o_Data(uart_fifo_data),
 		.o_Data_Ready(uart_fifo_ready)
 			
 	);
+
 
 // UART loopback - sends out data when fifo is not empty
 always @(posedge Clock or posedge Reset) begin

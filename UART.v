@@ -10,6 +10,8 @@ module UART	#(parameter CLOCK_FREQUENCY = 100000000)
 		
 		input wire i_RX,
 		output reg sample_point,
+		output reg sample_error,
+		output reg sm_debug,
 		
 		input wire i_Read_Data,
 		output reg [7:0] o_Data,
@@ -127,8 +129,8 @@ end
 // UART RX state machine
 reg [1:0] SM_uart_rx;
 localparam sm_waiting_rx = 2'b00;
-localparam sm_data_rx    = 2'b01;
-localparam sm_write_rx   = 2'b10;
+localparam sm_start_rx   = 2'b01;
+localparam sm_data_rx    = 2'b10;
 
 always @(posedge i_Clock or posedge i_Reset) begin
 	if (i_Reset) begin
@@ -136,24 +138,40 @@ always @(posedge i_Clock or posedge i_Reset) begin
 		sample_point <= 1'b0;
 		data_rx <= 8'd0;
 		fifo_write <= 1'b0;
+		sample_error <= 1'b0;
 	end
 	else
 		case (SM_uart_rx)
 			sm_waiting_rx:
-				if (i_RX == 1'b0) begin
-					bitCounter_rx <= 4'd0;
-					clock_count_rx <= first_sample;		// First sample point is 1.5 * (100MHz / 11520) ie one uart period (start bit) plus a half period (for the sample point)
-					data_rx <= 8'd0;
-					sample_point <= 1'b0;
-					SM_uart_rx <= sm_data_rx;
-				end
-				else
+				begin
 					fifo_write <= 1'b0;
+					sm_debug <= 1'b0;
+
+					if (i_RX == 1'b0) begin
+						SM_uart_rx <= sm_start_rx;
+					end
+				end
+				
+			sm_start_rx:
+				begin
+					if (i_RX == 1'b1) begin						// Should be a zero - back to wait state
+						SM_uart_rx <= sm_waiting_rx;
+						sample_error <= 1'b1;
+					end
+					else
+						sm_debug <= 1'b1;
+						bitCounter_rx <= 4'd0;
+						clock_count_rx <= first_sample;			// First sample point is 1.5 * (100MHz / 115200) ie one uart period (start bit) plus a half period (for the sample point)
+						data_rx <= 8'd0;
+						sample_point <= 1'b0;
+						SM_uart_rx <= sm_data_rx;
+					end
+				
 
 			sm_data_rx:
 				if (clock_count_rx == 16'd0) begin
 					bitCounter_rx <= bitCounter_rx + 1'b1;
-					clock_count_rx <= uart_divider;		// Set counter to next sample point
+					clock_count_rx <= uart_divider;				// Set counter to next sample point
 					sample_point <= ~sample_point;
 					
 					// 9th bit should be = 1 (stop bit)
