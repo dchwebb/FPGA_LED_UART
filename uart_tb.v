@@ -68,7 +68,7 @@ end
 // UART state machine for led control (eg 'r1\n' to toggle led 1 red)
 reg [2:0] SM_rgb_control;
 localparam sm_rgb_waiting = 3'b000;
-localparam sm_rgb_pause1  = 3'b001;
+localparam sm_rgb_pause  = 3'b001;
 localparam sm_rgb_led_no  = 3'b010;
 localparam sm_rgb_pause2  = 3'b011;
 localparam sm_rgb_send    = 3'b100;
@@ -79,6 +79,7 @@ localparam green = 2'b01;
 localparam blue  = 2'b10;
 reg [1:0] rgb_colour;
 reg [1:0] rgb_number;
+reg [2:0] char_count;
 
 // UART loopback - sends out data when fifo is not empty
 always @(posedge Clock or posedge Reset) begin
@@ -88,6 +89,7 @@ always @(posedge Clock or posedge Reset) begin
 		led1_r <= 8'h0;
 		uart_read <= 1'b0;
 		uart_send <= 1'b0;
+		char_count <= 3'b0;
 		rgb_debug <= 1'b0;
 		rgb_colour <= 2'd0;
 		rgb_number <= 2'd0;
@@ -96,73 +98,41 @@ always @(posedge Clock or posedge Reset) begin
 		case (SM_rgb_control)
 			sm_rgb_waiting:
 				begin
-					//rgb_debug <= 1'b0;					
 					uart_read <= 1'b0;
 					uart_send <= 1'b0;
+					
 					if (uart_fifo_ready && ~uart_send_busy) begin
 						uart_read <= 1'b1;
 						uart_tx_data <= uart_rx_data;
 						uart_send <= 1'b1;
 						
-						SM_rgb_control <= sm_rgb_pause1;
-						case (uart_rx_data)
-							8'h72:		rgb_colour <= red;
-							8'h67:		rgb_colour <= green;
-							8'h62:		rgb_colour <= blue;
-							default:		SM_rgb_control <= sm_rgb_waiting;
-						endcase
-					end
-				end
-				
-			sm_rgb_pause1:
-				begin
-					uart_read <= 1'b0;
-					uart_send <= 1'b0;
-					SM_rgb_control <= sm_rgb_led_no;
-				end
-				
-			sm_rgb_led_no:
-				begin
-					rgb_debug <= 1'b1;
+						SM_rgb_control <= sm_rgb_pause;
+						char_count <= char_count + 3'd1;
 
-					if (uart_fifo_ready && ~uart_send_busy) begin
-						uart_read <= 1'b1;
-						uart_tx_data <= uart_rx_data;
-						uart_send <= 1'b1;
-						
-						SM_rgb_control <= sm_rgb_pause2;
-						case (uart_rx_data)
-							8'h31:		rgb_number <= 2'd0;
-							8'h32:		rgb_number <= 2'd1;
-							8'h33:		rgb_number <= 2'd2;
-							default:		SM_rgb_control <= sm_rgb_waiting;
+						case ({char_count, uart_rx_data})
+							{3'd0, 8'h72}:		rgb_colour <= red;
+							{3'd0, 8'h67}:		rgb_colour <= green;
+							{3'd0, 8'h62}:		rgb_colour <= blue;
+							{3'd1, 8'h31}:		rgb_number <= 2'd0;
+							{3'd1, 8'h32}:		rgb_number <= 2'd1;
+							{3'd1, 8'h33}:		rgb_number <= 2'd2;
+							{3'd2, 8'h0A}:
+								begin
+									char_count <= 3'd0;
+									led1_r <= led1_r_on ? 8'h0 : 8'h11;
+									led1_r_on <= ~led1_r_on;
+								end
+							default:		char_count <= 3'd0;
 						endcase
+						
 					end
 				end
 				
-			sm_rgb_pause2:
+			sm_rgb_pause:
 				begin
 					uart_read <= 1'b0;
 					uart_send <= 1'b0;
-					SM_rgb_control <= sm_rgb_send;
-				end				
-				
-			sm_rgb_send:
-				begin
-					uart_read <= 1'b0;
-					uart_send <= 1'b0;
-					if (uart_fifo_ready && ~uart_send_busy) begin
-						uart_read <= 1'b1;
-						uart_tx_data <= uart_rx_data;
-						uart_send <= 1'b1;
-						
-						if (uart_rx_data == 8'h0A) begin
-							led1_r <= led1_r_on ? 8'h0 : 8'h11;
-							led1_r_on <= ~led1_r_on;
-						end
-						SM_rgb_control <= sm_rgb_waiting;
-						
-					end
+					SM_rgb_control <= sm_rgb_waiting;
 				end
 				
 		endcase
@@ -207,7 +177,7 @@ initial begin
 	#8600
 	uart_rx = 1'b1;		// end bit
 	#8600
-
+/*
 	// 0x78 'x'
 	uart_rx = 1'b0;		// start bit
 	#8600
@@ -229,7 +199,7 @@ initial begin
 	#8600
 	uart_rx = 1'b1;		// end bit
 	#8600
-
+*/
 
 	// 0x31 '1'
 	uart_rx = 1'b0;		// start bit
