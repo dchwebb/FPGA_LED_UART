@@ -4,7 +4,7 @@ module top (
 	output wire led, 
 	output wire uart_tx,
 	output wire uart_sample_point,
-	output wire uart_sample_error,
+	output reg rgb_debug,
 	output wire uart_sm_debug
 );
 
@@ -20,6 +20,8 @@ wire Reset;
 assign Reset = ~rstn;
 
 // LED settings
+reg led1_r_on;
+reg [7:0] led1_r;
 wire led_ready;
 reg led_start;
 
@@ -95,7 +97,19 @@ WS2812 #(.CLOCK_FREQUENCY(CLOCK_FREQUENCY)) ws2812 (
 	.i_Reset(Reset),
 
 	.i_Start(led_start),
-	.i_Colour(timer_value),
+
+	.i_LED1_R(led1_r),
+	.i_LED1_G(8'b0),
+	.i_LED1_B(8'b0),
+	
+	.i_LED2_R(8'b0),
+	.i_LED2_G(timer_value),
+	.i_LED2_B(8'b0),
+
+	.i_LED3_R(8'b0),
+	.i_LED3_G(8'b0),
+	.i_LED3_B(timer_value),
+	
 	.o_Led(led),
 	.o_Ready(led_ready)
 );
@@ -115,9 +129,9 @@ end
 reg uart_send;
 reg uart_read;
 reg [7:0] uart_tx_data;
-wire [7:0] uart_fifo_data;
+wire [7:0] uart_rx_data;
 wire uart_send_busy;
-
+wire uart_sample_error;
 
 // UART
 UART #(.CLOCK_FREQUENCY(CLOCK_FREQUENCY)) uart_module (
@@ -135,11 +149,102 @@ UART #(.CLOCK_FREQUENCY(CLOCK_FREQUENCY)) uart_module (
 		.sm_debug(uart_sm_debug),
 		
 		.i_Read_Data(uart_read),
-		.o_Data(uart_fifo_data),
+		.o_Data(uart_rx_data),
 		.o_Data_Ready(uart_fifo_ready)
 			
 	);
 
+// UART state machine for led control (eg 'r1\n' to toggle led 1 red)
+reg [2:0] SM_rgb_control;
+localparam sm_rgb_waiting = 3'b000;
+localparam sm_rgb_colour  = 3'b001;
+localparam sm_rgb_led_no  = 3'b010;
+localparam sm_rgb_send    = 3'b011;
+
+
+localparam red   = 2'b00;
+localparam green = 2'b01;
+localparam blue  = 2'b10;
+reg [1:0] rgb_colour;
+reg [1:0] rgb_number;
+
+//assign rgb_debug = uart_fifo_ready;
+
+// UART loopback - sends out data when fifo is not empty
+always @(posedge Clock or posedge Reset) begin
+	if (Reset) begin
+		SM_rgb_control <= sm_rgb_waiting;
+		led1_r_on <= 1'b0;
+		led1_r <= 8'h0;
+		uart_read <= 1'b0;
+		uart_send <= 1'b0;
+		rgb_debug <= 1'b0;
+	end
+	else begin
+		case (SM_rgb_control)
+			sm_rgb_waiting:
+				begin
+					//rgb_debug <= 1'b0;					
+					uart_read <= 1'b0;
+					uart_send <= 1'b0;
+					if (uart_fifo_ready && ~uart_send_busy) begin
+						uart_read <= 1'b1;
+						uart_tx_data <= uart_rx_data;
+						uart_send <= 1'b1;
+						
+						SM_rgb_control <= sm_rgb_led_no;
+						case (uart_rx_data)
+							8'h72:		rgb_colour <= red;
+							8'h67:		rgb_colour <= green;
+							8'h62:		rgb_colour <= blue;
+							default:		SM_rgb_control <= sm_rgb_waiting;
+						endcase
+					end
+				end
+				
+			sm_rgb_led_no:
+				begin
+					rgb_debug <= 1'b1;
+					uart_read <= 1'b0;
+					uart_send <= 1'b0;
+					if (uart_fifo_ready && ~uart_send_busy) begin
+						uart_read <= 1'b1;
+						uart_tx_data <= uart_rx_data;
+						uart_send <= 1'b1;
+						
+						SM_rgb_control <= sm_rgb_send;
+						case (uart_rx_data)
+							8'h31:		rgb_number <= 2'd0;
+							8'h32:		rgb_number <= 2'd1;
+							8'h33:		rgb_number <= 2'd2;
+							default:		SM_rgb_control <= sm_rgb_waiting;
+						endcase
+					end
+				end
+				
+			sm_rgb_send:
+				begin
+					uart_read <= 1'b0;
+					uart_send <= 1'b0;
+					if (uart_fifo_ready && ~uart_send_busy) begin
+						uart_read <= 1'b1;
+						uart_tx_data <= uart_rx_data;
+						uart_send <= 1'b1;
+						
+						if (uart_rx_data == 8'h0A) begin
+							led1_r <= led1_r_on ? 8'h0 : 8'h11;
+							led1_r_on <= ~led1_r_on;
+						end
+						SM_rgb_control <= sm_rgb_waiting;
+						
+					end
+				end
+				
+		endcase
+	end
+end
+
+/*
 
 // UART loopback - sends out data when fifo is not empty
 always @(posedge Clock or posedge Reset) begin
@@ -151,7 +256,7 @@ always @(posedge Clock or posedge Reset) begin
 		
 		if (uart_fifo_ready && ~uart_send_busy) begin
 			uart_read <= 1'b1;
-			uart_tx_data <= uart_fifo_data;
+			uart_tx_data <= uart_rx_data;
 			uart_send <= 1'b1;
 		end
 		else begin
@@ -160,7 +265,7 @@ always @(posedge Clock or posedge Reset) begin
 		end
 	end
 end
-
+*/
 
 endmodule
 

@@ -138,7 +138,7 @@ always @(posedge i_Clock or posedge i_Reset) begin
 		sample_point <= 1'b0;
 		data_rx <= 8'd0;
 		fifo_write <= 1'b0;
-		sample_error <= 1'b0;
+		sample_error <= 1'b1;		// Debug
 	end
 	else
 		case (SM_uart_rx)
@@ -156,7 +156,7 @@ always @(posedge i_Clock or posedge i_Reset) begin
 				begin
 					if (i_RX == 1'b1) begin						// Should be a zero - back to wait state
 						SM_uart_rx <= sm_waiting_rx;
-						sample_error <= 1'b1;
+						sample_error <= 1'b0;
 					end
 					else
 						sm_debug <= 1'b1;
@@ -194,7 +194,7 @@ end
 
 
 //----------------------------------------------------------------
-// UART FIFO read received data state machine - always place next data on output
+// UART FIFO read received data state machine - always place next fifo data on output
 reg [1:0] SM_uart_fifo;
 localparam sm_waiting_fifo = 2'b00;
 localparam sm_wait_fifo    = 2'b01;

@@ -5,18 +5,32 @@ module WS2812
 		input wire i_Reset,
 
 		input wire i_Start,
-		input wire [7:0] i_Colour,
+
+		input wire [7:0] i_LED1_R,
+		input wire [7:0] i_LED1_G,
+		input wire [7:0] i_LED1_B,
+		
+		input wire [7:0] i_LED2_R,
+		input wire [7:0] i_LED2_G,
+		input wire [7:0] i_LED2_B,
+		
+		input wire [7:0] i_LED3_R,
+		input wire [7:0] i_LED3_G,
+		input wire [7:0] i_LED3_B,
+
 		output wire o_Led,
 		output wire o_Ready
 	);
 
 
 //GRB
+/*
 wire [23:0] output_rgb1;
-assign output_rgb1 = {i_Colour, 16'h0000};
+assign output_rgb1 = {i_LED1_G, i_LED1_R, i_LED1_B};
 reg [23:0] output_rgb2 = 24'h00FF00;
 reg [23:0] output_rgb3 = 24'h000011;
-wire [71:0] output_rgb;assign output_rgb = {output_rgb1, output_rgb2, output_rgb3};
+*/
+wire [71:0] output_rgb;assign output_rgb = {i_LED1_G, i_LED1_R, i_LED1_B, i_LED2_G, i_LED2_R, i_LED2_B, i_LED3_G, i_LED3_R, i_LED3_B};
 
 reg [8:0] clk_counter;
 reg [8:0] led_counter;
